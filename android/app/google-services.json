@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "879959483672",
+    "project_id": "imagedata-c3fd3",
+    "storage_bucket": "imagedata-c3fd3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:879959483672:android:aa34fd08e22de9c91dea6d",
+        "android_client_info": {
+          "package_name": "com.example.imageoedit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdg1-3TNXC3fYO9QxHbtmTCMTAjJX9NX8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
