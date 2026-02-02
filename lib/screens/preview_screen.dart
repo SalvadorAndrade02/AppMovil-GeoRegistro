@@ -45,7 +45,28 @@ class _PreviewScreenState extends State<PreviewScreen> {
           width: 1080,
           child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
         ),
-
+        // ETIQUETA CUADRILLA
+        Positioned(
+          top: 15,
+          right: 15,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: const Text(
+              "CUADRILLA 7",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+        ),
         // LOS DATOS
         Padding(
           padding: const EdgeInsets.all(40.0),
@@ -127,19 +148,39 @@ class _PreviewScreenState extends State<PreviewScreen> {
         Stack(
           alignment: Alignment.bottomLeft,
           children: [
+            // 1. LA IMAGEN (Base)
             Container(
               width: 1080,
               child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
             ),
-            if (_rectPosition != null)
-              Positioned(
-                left: _rectPosition!.dx - 50,
-                top: _rectPosition!.dy - 50,
-                child: Container(
-                  width: 100,
-                  height: 100,
+
+            // 2. ETIQUETA CUADRILLA (Ahora encima de la imagen)
+            Positioned(
+              top: 15,
+              right: 15,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: const Text(
+                  "CUADRILLA 7",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 1.1,
+                  ),
                 ),
               ),
+            ),
+
+            // 3. TU OVERLAY DE DATOS
             Padding(
               padding: const EdgeInsets.all(40.0),
               child: DataOverlay(
@@ -209,16 +250,13 @@ class _PreviewScreenState extends State<PreviewScreen> {
             "📍 Registro: $_address\n"
             "📝 Notas: ${_notesController.text}\n";
 
-        await Share.shareXFiles(
-          [
-            XFile.fromData(
-              capturedImage,
-              name: 'registro_campo.png',
-              mimeType: 'image/png',
-            ),
-          ],
-          text: caption,
-        );
+        await Share.shareXFiles([
+          XFile.fromData(
+            capturedImage,
+            name: 'registro_campo.png',
+            mimeType: 'image/png',
+          ),
+        ], text: caption);
       }
     } catch (e) {
       print("Error al compartir: $e");
@@ -267,9 +305,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.share),
-            onPressed: _isProcessing
-                ? null
-                : _handleShare, 
+            onPressed: _isProcessing ? null : _handleShare,
           ),
         ],
       ),
@@ -283,7 +319,42 @@ class _PreviewScreenState extends State<PreviewScreen> {
                     child: Stack(
                       alignment: Alignment.bottomLeft,
                       children: [
-                        // TU OVERLAY DE DATOS
+                        // 1. LA IMAGEN BASE
+                        Image.file(
+                          File(widget.imagePath),
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                        ),
+
+                        // 2. NUEVA ETIQUETA: CUADRILLA 7
+                        Positioned(
+                          top: 15,
+                          right: 15,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(
+                                0.6,
+                              ), // Fondo oscuro para que resalte
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: const Text(
+                              "CUADRILLA 7",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // 3. TU OVERLAY DE DATOS (EL QUE YA TENÍAS)
                         Padding(
                           padding: const EdgeInsets.all(15.0),
                           child: DataOverlay(
