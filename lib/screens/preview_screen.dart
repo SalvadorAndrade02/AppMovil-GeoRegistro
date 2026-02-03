@@ -5,6 +5,7 @@ import 'package:screenshot/screenshot.dart';
 import 'package:gal/gal.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../widgets/data_overlay.dart';
 
 class PreviewScreen extends StatefulWidget {
@@ -28,7 +29,12 @@ class PreviewScreen extends StatefulWidget {
 class _PreviewScreenState extends State<PreviewScreen> {
   final TextEditingController _notesController = TextEditingController();
   final ScreenshotController _screenshotController = ScreenshotController();
-  Offset? _rectPosition; // Guarda la posición (x, y) del cuadro
+  Offset? _rectPosition;
+
+  List<Rect> _rects = []; // Aquí se guardan los cuadros terminados
+  Offset? _startPos; // Punto donde inicia el dibujo
+  Offset? _currentPos; // Punto donde está el dedo actualmente
+  bool _isDrawingMode = false; // Interruptor para activar/desactivar dibujo
 
   bool _isProcessing = false;
 
@@ -128,22 +134,14 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
   //Función para guardar la imagen en la galería
   Future<void> _handleSave() async {
-    print("--- DEBUG: BOTÓN PRESIONADO ---");
-
-    // 1. Cerramos el teclado para evitar interferencias en el layout
     FocusScope.of(context).unfocus();
-
     setState(() => _isProcessing = true);
 
     try {
-      // Formateamos la fecha para que el widget en memoria sea igual al de la pantalla
       String formattedDate = DateFormat(
         'dd/MM/yyyy - HH:mm',
       ).format(_selectedDateTime);
 
-      print("--- DEBUG: GENERANDO CAPTURA DESDE WIDGET... ---");
-
-      // 2. Usamos captureFromWidget: Esto crea la imagen "en privado" sin importar el scroll o el teclado
       final capturedImage = await _screenshotController.captureFromWidget(
         Stack(
           alignment: Alignment.bottomLeft,
@@ -154,41 +152,63 @@ class _PreviewScreenState extends State<PreviewScreen> {
               child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
             ),
 
-            // 2. ETIQUETA CUADRILLA (Ahora encima de la imagen)
-            Positioned(
-              top: 15,
-              right: 15,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: const Text(
-                  "CUADRILLA 7",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    letterSpacing: 1.1,
+            // 2. LOS RECTÁNGULOS DIBUJADOS (¡NUEVO!)
+            // Usamos el operador spread (...) para meter la lista de widgets
+            ..._rects.map(
+              (rect) => Positioned.fromRect(
+                rect: rect,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.red,
+                      width: 6,
+                    ), // Más grueso para los 1080px
                   ),
                 ),
               ),
             ),
 
-            // 3. TU OVERLAY DE DATOS
+            // 4. OVERLAY DE DATOS
             Padding(
-              padding: const EdgeInsets.all(40.0),
-              child: DataOverlay(
-                lat: widget.lat,
-                lng: widget.lng,
-                date: formattedDate,
-                notes: _notesController.text,
-                address: _address,
+              padding: const EdgeInsets.all(15.0),
+              child: Column(
+                mainAxisSize:
+                    MainAxisSize.min, // Importante: ajusta al contenido
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ETIQUETA CUADRILLA (Aparecerá justo arriba de la caja gris)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    margin: const EdgeInsets.only(
+                      bottom: 4,
+                    ), // Separación del overlay
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      "CUADRILLA 7",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+
+                  // TU OVERLAY DE SIEMPRE
+                  DataOverlay(
+                    lat: widget.lat,
+                    lng: widget.lng,
+                    date: formattedDate,
+                    notes: _notesController.text,
+                    address: _address,
+                  ),
+                ],
               ),
             ),
           ],
@@ -198,35 +218,20 @@ class _PreviewScreenState extends State<PreviewScreen> {
       );
 
       if (capturedImage != null) {
-        print("--- DEBUG: ¡IMAGEN GENERADA! GUARDANDO EN DISCO... ---");
-
-        // 3. Guardado físico en la galería
         await Gal.putImageBytes(capturedImage);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ ¡Imagen guardada en tu galería!'),
+              content: Text('✅ ¡Imagen guardada con marcas!'),
               backgroundColor: Colors.green,
             ),
           );
-          // Volver a la cámara
           await Future.delayed(const Duration(seconds: 1));
           Navigator.pop(context);
         }
-      } else {
-        print("--- DEBUG: LA GENERACIÓN SIGUE DANDO NULL ---");
       }
     } catch (e) {
-      print("--- DEBUG: ERROR CRÍTICO: $e ---");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error al guardar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      print("Error: $e");
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -235,33 +240,103 @@ class _PreviewScreenState extends State<PreviewScreen> {
   //Funcion para compartir
   Future<void> _handleShare() async {
     setState(() => _isProcessing = true);
+
     try {
       String formattedDate = DateFormat(
         'dd/MM/yyyy - HH:mm',
       ).format(_selectedDateTime);
 
-      final capturedImage = await _screenshotController.captureFromWidget(
-        _buildImageToCapture(formattedDate),
-        delay: const Duration(milliseconds: 200),
+      // Capturamos el widget con TODO el contenido (igual que en el save)
+      final uint8list = await _screenshotController.captureFromWidget(
+        Stack(
+          alignment: Alignment.bottomLeft,
+          children: [
+            // 1. Imagen base
+            Container(
+              width: 1080,
+              child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
+            ),
+
+            // 2. TUS RECTÁNGULOS (Lo que acabamos de agregar)
+            ..._rects.map(
+              (rect) => Positioned.fromRect(
+                rect: rect,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.red, width: 6),
+                  ),
+                ),
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(15.0),
+              child: Column(
+                mainAxisSize:
+                    MainAxisSize.min, // Importante: ajusta al contenido
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ETIQUETA CUADRILLA (Aparecerá justo arriba de la caja gris)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    margin: const EdgeInsets.only(
+                      bottom: 4,
+                    ), // Separación del overlay
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      "CUADRILLA 7",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+
+                  // TU OVERLAY DE SIEMPRE
+                  DataOverlay(
+                    lat: widget.lat,
+                    lng: widget.lng,
+                    date: formattedDate,
+                    notes: _notesController.text,
+                    address: _address,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pixelRatio: 1.0,
       );
 
-      if (capturedImage != null) {
-        String caption =
-            "📍 Registro: $_address\n"
-            "📝 Notas: ${_notesController.text}\n";
+      if (uint8list != null) {
+        // Guardar temporalmente para compartir
+        final directory = await getTemporaryDirectory();
+        final imagePath = '${directory.path}/registro_compartido.png';
+        final imageFile = File(imagePath);
+        await imageFile.writeAsBytes(uint8list);
 
-        await Share.shareXFiles([
-          XFile.fromData(
-            capturedImage,
-            name: 'registro_campo.png',
-            mimeType: 'image/png',
-          ),
-        ], text: caption);
+        // Abrir el menú de compartir de Android/iOS
+        // Abrir el menú de compartir con texto dinámico
+        await Share.shareXFiles(
+          [XFile(imagePath)],
+          text:
+              '📍 Registro de Campo:\n'
+              '👷 Cuadrilla: 7\n'
+              '🏠 Ubicación: $_address',
+        );
       }
     } catch (e) {
       print("Error al compartir: $e");
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      setState(() => _isProcessing = false);
     }
   }
 
@@ -319,50 +394,106 @@ class _PreviewScreenState extends State<PreviewScreen> {
                     child: Stack(
                       alignment: Alignment.bottomLeft,
                       children: [
-                        // 1. LA IMAGEN BASE
-                        Image.file(
-                          File(widget.imagePath),
-                          width: double.infinity,
-                          fit: BoxFit.contain,
+                        // DETECTOR DE GESTOS SOBRE LA IMAGEN
+                        GestureDetector(
+                          onPanStart: (details) {
+                            if (_isDrawingMode)
+                              setState(() => _startPos = details.localPosition);
+                          },
+                          onPanUpdate: (details) {
+                            if (_isDrawingMode)
+                              setState(
+                                () => _currentPos = details.localPosition,
+                              );
+                          },
+                          onPanEnd: (details) {
+                            if (_isDrawingMode &&
+                                _startPos != null &&
+                                _currentPos != null) {
+                              setState(() {
+                                // Creamos el Rect final y lo guardamos en la lista
+                                _rects.add(
+                                  Rect.fromPoints(_startPos!, _currentPos!),
+                                );
+                                _startPos = null;
+                                _currentPos = null;
+                              });
+                            }
+                          },
+                          child: Image.file(
+                            File(widget.imagePath),
+                            width: double.infinity,
+                            fit: BoxFit.contain,
+                          ),
                         ),
 
-                        // 2. NUEVA ETIQUETA: CUADRILLA 7
-                        Positioned(
-                          top: 15,
-                          right: 15,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(
-                                0.6,
-                              ), // Fondo oscuro para que resalte
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(color: Colors.white24),
-                            ),
-                            child: const Text(
-                              "CUADRILLA 7",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                letterSpacing: 1.1,
+                        // DIBUJAR LOS CUADROS QUE YA ESTÁN TERMINADOS
+                        ..._rects.map(
+                          (rect) => Positioned.fromRect(
+                            rect: rect,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.red, width: 3),
                               ),
                             ),
                           ),
                         ),
 
-                        // 3. TU OVERLAY DE DATOS (EL QUE YA TENÍAS)
+                        // DIBUJAR EL CUADRO "FANTASMA" MIENTRAS ARRASTRAS EL DEDO
+                        if (_startPos != null && _currentPos != null)
+                          Positioned.fromRect(
+                            rect: Rect.fromPoints(_startPos!, _currentPos!),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.redAccent.withOpacity(0.5),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // DATA OVERLAY (Mantenlo igual)
                         Padding(
                           padding: const EdgeInsets.all(15.0),
-                          child: DataOverlay(
-                            lat: widget.lat,
-                            lng: widget.lng,
-                            date: formattedDate,
-                            notes: _notesController.text,
-                            address: _address,
+                          child: Column(
+                            mainAxisSize: MainAxisSize
+                                .min, // Importante: ajusta al contenido
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ETIQUETA CUADRILLA (Aparecerá justo arriba de la caja gris)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                margin: const EdgeInsets.only(
+                                  bottom: 4,
+                                ), // Separación del overlay
+                                decoration: BoxDecoration(
+                                  color: Colors.blueAccent.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  "CUADRILLA 7",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ),
+
+                              // TU OVERLAY DE SIEMPRE
+                              DataOverlay(
+                                lat: widget.lat,
+                                lng: widget.lng,
+                                date: formattedDate,
+                                notes: _notesController.text,
+                                address: _address,
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -424,6 +555,40 @@ class _PreviewScreenState extends State<PreviewScreen> {
                         ),
 
                         const SizedBox(height: 20),
+
+                        Row(
+                          children: [
+                            ActionChip(
+                              avatar: Icon(
+                                Icons.edit,
+                                size: 16,
+                                color: _isDrawingMode
+                                    ? Colors.white
+                                    : Colors.blue,
+                              ),
+                              label: Text(
+                                _isDrawingMode ? "DIBUJANDO" : "MARCAR FOTO",
+                              ),
+                              backgroundColor: _isDrawingMode
+                                  ? Colors.redAccent
+                                  : Colors.blue.withOpacity(0.1),
+                              onPressed: () => setState(
+                                () => _isDrawingMode = !_isDrawingMode,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            if (_rects.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.undo,
+                                  color: Colors.grey,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _rects.removeLast()),
+                                tooltip: "Deshacer último cuadro",
+                              ),
+                          ],
+                        ),
 
                         const Row(
                           children: [
