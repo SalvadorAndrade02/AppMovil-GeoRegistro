@@ -13,6 +13,7 @@ class PreviewScreen extends StatefulWidget {
   final double lat;
   final double lng;
   final String direccion;
+  final bool isFrontCamera;
 
   const PreviewScreen({
     super.key,
@@ -20,6 +21,7 @@ class PreviewScreen extends StatefulWidget {
     required this.lat,
     required this.lng,
     required this.direccion,
+    this.isFrontCamera = false,
   });
 
   @override
@@ -147,9 +149,16 @@ class _PreviewScreenState extends State<PreviewScreen> {
           alignment: Alignment.bottomLeft,
           children: [
             // 1. LA IMAGEN (Base)
+            // Dentro de captureFromWidget -> Stack
             Container(
               width: 1080,
-              child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.rotationY(
+                  widget.isFrontCamera ? 3.14159 : 0,
+                ),
+                child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
+              ),
             ),
 
             // 2. LOS RECTÁNGULOS DIBUJADOS (¡NUEVO!)
@@ -214,7 +223,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
           ],
         ),
         delay: const Duration(milliseconds: 200),
-        pixelRatio: 1.0,
+        pixelRatio: 3.0,
       );
 
       if (capturedImage != null) {
@@ -252,9 +261,16 @@ class _PreviewScreenState extends State<PreviewScreen> {
           alignment: Alignment.bottomLeft,
           children: [
             // 1. Imagen base
+            // Dentro de captureFromWidget -> Stack
             Container(
               width: 1080,
-              child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.rotationY(
+                  widget.isFrontCamera ? 3.14159 : 0,
+                ),
+                child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
+              ),
             ),
 
             // 2. TUS RECTÁNGULOS (Lo que acabamos de agregar)
@@ -313,7 +329,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
             ),
           ],
         ),
-        pixelRatio: 1.0,
+        pixelRatio: 3.0,
       );
 
       if (uint8list != null) {
@@ -324,14 +340,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
         await imageFile.writeAsBytes(uint8list);
 
         // Abrir el menú de compartir de Android/iOS
-        // Abrir el menú de compartir con texto dinámico
-        await Share.shareXFiles(
-          [XFile(imagePath)],
-          text:
-              '📍 Registro de Campo:\n'
-              '👷 Cuadrilla: 7\n'
-              '🏠 Ubicación: $_address',
-        );
+        await Share.shareXFiles([XFile(imagePath)]);
       }
     } catch (e) {
       print("Error al compartir: $e");
@@ -394,71 +403,88 @@ class _PreviewScreenState extends State<PreviewScreen> {
                     child: Stack(
                       alignment: Alignment.bottomLeft,
                       children: [
-                        // DETECTOR DE GESTOS SOBRE LA IMAGEN
-                        GestureDetector(
-                          onPanStart: (details) {
-                            if (_isDrawingMode)
-                              setState(() => _startPos = details.localPosition);
-                          },
-                          onPanUpdate: (details) {
-                            if (_isDrawingMode)
-                              setState(
-                                () => _currentPos = details.localPosition,
-                              );
-                          },
-                          onPanEnd: (details) {
-                            if (_isDrawingMode &&
-                                _startPos != null &&
-                                _currentPos != null) {
-                              setState(() {
-                                // Creamos el Rect final y lo guardamos en la lista
-                                _rects.add(
-                                  Rect.fromPoints(_startPos!, _currentPos!),
-                                );
-                                _startPos = null;
-                                _currentPos = null;
-                              });
-                            }
-                          },
-                          child: Image.file(
-                            File(widget.imagePath),
-                            width: double.infinity,
-                            fit: BoxFit.contain,
+                        // Envolvemos Imagen + Rectángulos en el mismo Transform
+                        Transform(
+                          alignment: Alignment.center,
+                          transform: Matrix4.rotationY(
+                            widget.isFrontCamera ? 3.14159 : 0,
                           ),
-                        ),
-
-                        // DIBUJAR LOS CUADROS QUE YA ESTÁN TERMINADOS
-                        ..._rects.map(
-                          (rect) => Positioned.fromRect(
-                            rect: rect,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.red, width: 3),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // DIBUJAR EL CUADRO "FANTASMA" MIENTRAS ARRASTRAS EL DEDO
-                        if (_startPos != null && _currentPos != null)
-                          Positioned.fromRect(
-                            rect: Rect.fromPoints(_startPos!, _currentPos!),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.redAccent.withOpacity(0.5),
-                                  width: 2,
+                          child: Stack(
+                            children: [
+                              GestureDetector(
+                                onPanStart: (details) {
+                                  if (_isDrawingMode) {
+                                    setState(() {
+                                      _startPos = details.localPosition;
+                                      _currentPos = _startPos;
+                                    });
+                                  }
+                                },
+                                onPanUpdate: (details) {
+                                  if (_isDrawingMode && _startPos != null) {
+                                    setState(() {
+                                      _currentPos = details.localPosition;
+                                    });
+                                  }
+                                },
+                                onPanEnd: (details) {
+                                  if (_isDrawingMode &&
+                                      _startPos != null &&
+                                      _currentPos != null) {
+                                    setState(() {
+                                      Rect newRect = Rect.fromPoints(
+                                        _startPos!,
+                                        _currentPos!,
+                                      );
+                                      _rects.add(newRect);
+                                      _startPos = null;
+                                      _currentPos = null;
+                                    });
+                                  }
+                                },
+                                child: Image.file(
+                                  File(widget.imagePath),
+                                  fit: BoxFit.contain,
                                 ),
                               ),
-                            ),
+                              ..._rects.map(
+                                (rect) => Positioned.fromRect(
+                                  rect: rect,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.red,
+                                        width: 4,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (_startPos != null && _currentPos != null)
+                                Positioned.fromRect(
+                                  rect: Rect.fromPoints(
+                                    _startPos!,
+                                    _currentPos!,
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.red,
+                                        width: 4,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
+                        ),
 
-                        // DATA OVERLAY (Mantenlo igual)
+                        // EL OVERLAY DE DATOS (Este NO se voltea, debe ser legible siempre)
                         Padding(
                           padding: const EdgeInsets.all(15.0),
                           child: Column(
-                            mainAxisSize: MainAxisSize
-                                .min, // Importante: ajusta al contenido
+                            mainAxisSize:
+                                MainAxisSize.min, // Importante: ajusta al contenido
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // ETIQUETA CUADRILLA (Aparecerá justo arriba de la caja gris)
