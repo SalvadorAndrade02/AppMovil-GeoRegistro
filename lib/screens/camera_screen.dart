@@ -127,7 +127,6 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
     if (_controller == null || !_controller!.value.isInitialized) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -161,7 +160,16 @@ class _CameraScreenState extends State<CameraScreen> {
                         scale: 1.0, // Asegúrate de que el scale inicial sea 1
                         child: Center(
                           child: AspectRatio(
-                            aspectRatio: 1 / _controller!.value.aspectRatio,
+                            aspectRatio:
+                                MediaQuery.of(context).orientation ==
+                                    Orientation.landscape
+                                ? _controller!
+                                      .value
+                                      .aspectRatio // Modo acostado (Laptop)
+                                : 1 /
+                                      _controller!
+                                          .value
+                                          .aspectRatio, // Modo parado (Retrato)
                             child: CameraPreview(_controller!),
                           ),
                         ),
@@ -169,15 +177,7 @@ class _CameraScreenState extends State<CameraScreen> {
                     )
                   : const CircularProgressIndicator(),
             ),
-            /* child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.rotationY(
-                  _selectedCameraIndex == -1 ? 3.14159 : 0,
-                ),
-                child: CameraPreview(_controller!),
-              ), */
           ),
-          //),
 
           // CONTROL DE ZOOM
           Positioned(

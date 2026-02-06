@@ -255,15 +255,14 @@ class _PreviewScreenState extends State<PreviewScreen> {
         'dd/MM/yyyy - HH:mm',
       ).format(_selectedDateTime);
 
-      // Capturamos el widget con TODO el contenido (igual que en el save)
+      // Capturamos el widget
       final uint8list = await _screenshotController.captureFromWidget(
         Stack(
-          alignment: Alignment.bottomLeft,
+          alignment: Alignment.center, // Centra el contenido en la captura
           children: [
             // 1. Imagen base
-            // Dentro de captureFromWidget -> Stack
             Container(
-              width: 1080,
+              width: 1080, // Ancho de salida de la imagen
               child: Transform(
                 alignment: Alignment.center,
                 transform: Matrix4.rotationY(
@@ -273,7 +272,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
               ),
             ),
 
-            // 2. TUS RECTÁNGULOS (Lo que acabamos de agregar)
+            // 2. Los Rectángulos (si existen)
             ..._rects.map(
               (rect) => Positioned.fromRect(
                 rect: rect,
@@ -285,61 +284,35 @@ class _PreviewScreenState extends State<PreviewScreen> {
               ),
             ),
 
-            Padding(
-              padding: const EdgeInsets.all(15.0),
-              child: Column(
-                mainAxisSize:
-                    MainAxisSize.min, // Importante: ajusta al contenido
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ETIQUETA CUADRILLA (Aparecerá justo arriba de la caja gris)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    margin: const EdgeInsets.only(
-                      bottom: 4,
-                    ), // Separación del overlay
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      "CUADRILLA 7",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-
-                  // TU OVERLAY DE SIEMPRE
-                  DataOverlay(
-                    lat: widget.lat,
-                    lng: widget.lng,
-                    date: formattedDate,
-                    notes: _notesController.text,
-                    address: _address,
-                  ),
-                ],
+            // 3. EL OVERLAY (Sin Positioned interno ni Columnas extra)
+            // Lo ponemos al fondo de la captura
+            Positioned(
+              bottom: 20, // Ajusta la altura según prefieras en la foto final
+              left: 0,
+              right: 0,
+              child: DataOverlay(
+                lat: widget.lat,
+                lng: widget.lng,
+                date: formattedDate,
+                notes: _notesController.text,
+                address: _address,
               ),
             ),
           ],
         ),
         pixelRatio: 3.0,
+        delay: const Duration(
+          milliseconds: 200,
+        ), // Damos tiempo a que cargue la imagen
       );
 
       if (uint8list != null) {
-        // Guardar temporalmente para compartir
         final directory = await getTemporaryDirectory();
-        final imagePath = '${directory.path}/registro_compartido.png';
+        final imagePath =
+            '${directory.path}/registro_${DateTime.now().millisecondsSinceEpoch}.png';
         final imageFile = File(imagePath);
         await imageFile.writeAsBytes(uint8list);
 
-        // Abrir el menú de compartir de Android/iOS
         await Share.shareXFiles([XFile(imagePath)]);
       }
     } catch (e) {
@@ -479,12 +452,12 @@ class _PreviewScreenState extends State<PreviewScreen> {
                           ),
                         ),
 
-                        // EL OVERLAY DE DATOS (Este NO se voltea, debe ser legible siempre)
+                        // EL OVERLAY DE DATOS
                         Padding(
                           padding: const EdgeInsets.all(15.0),
                           child: Column(
-                            mainAxisSize:
-                                MainAxisSize.min, // Importante: ajusta al contenido
+                            mainAxisSize: MainAxisSize
+                                .min, // Importante: ajusta al contenido
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // ETIQUETA CUADRILLA (Aparecerá justo arriba de la caja gris)
